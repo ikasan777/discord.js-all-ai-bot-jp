@@ -22,13 +22,14 @@ const openai = new OpenAI({
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 const featureStatus = {
-  //API key がない場合無効化しておくことをお勧めするにゃ！
-  gpt: false, //true,有効化┃false,無効化 
-  gemini: true, //true,有効化┃false,無効化
-  perplexity: true //true,有効化┃false,無効化
+  gpt: true,
+  gemini: true,
+  perplexity: true
 };
 
 let autoRespondSettings = {};
+
+const userDataFolder = path.join(__dirname, 'userData');
 
 const commands = [
   new SlashCommandBuilder()
@@ -80,41 +81,55 @@ const commands = [
           { name: 'Gemini', value: 'gemini' },
           { name: 'Perplexity', value: 'perplexity' }
         ))
-    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+  new SlashCommandBuilder()
+    .setName('clear_history')
+    .setDescription('会話履歴を削除するにゃ')
+    .addStringOption(option =>
+      option.setName('ai')
+        .setDescription('削除するAIの履歴を選択するにゃ')
+        .setRequired(true)
+        .addChoices(
+          { name: 'GPT', value: 'gpt' },
+          { name: 'Gemini', value: 'gemini' },
+          { name: 'Perplexity', value: 'perplexity' },
+          { name: 'All', value: 'all' }
+        ))
 ];
 
 const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
 
-const jsonFilePath = path.join(__dirname, 'conversationHistory.json');
+async function ensureUserFolder(userId) {
+  const userFolder = path.join(userDataFolder, userId);
+  await fs.mkdir(userFolder, { recursive: true });
+  return userFolder;
+}
 
-async function loadConversationHistory() {
+async function loadConversationHistory(userId, aiType) {
+  const userFolder = await ensureUserFolder(userId);
+  const filePath = path.join(userFolder, `${aiType}.json`);
   try {
-    const data = await fs.readFile(jsonFilePath, 'utf8');
+    const data = await fs.readFile(filePath, 'utf8');
     return JSON.parse(data);
   } catch (error) {
     if (error.code === 'ENOENT') {
-      return { gpt: {}, gemini: {}, perplexity: {} };
+      return [];
     }
     console.error('Error reading conversation history:', error);
-    return { gpt: {}, gemini: {}, perplexity: {} };
+    return [];
   }
 }
 
-async function saveConversationHistory(history) {
-  try {
-    await fs.writeFile(jsonFilePath, JSON.stringify(history, null, 2));
-  } catch (error) {
-    console.error('Error saving conversation history:', error);
-  }
+async function saveConversationHistory(userId, aiType, history) {
+  const userFolder = await ensureUserFolder(userId);
+  const filePath = path.join(userFolder, `${aiType}.json`);
+  await fs.writeFile(filePath, JSON.stringify(history, null, 2));
 }
 
 async function updateConversationHistory(userId, aiType, prompt, response) {
-  const history = await loadConversationHistory();
-  if (!history[aiType][userId]) {
-    history[aiType][userId] = [];
-  }
-  history[aiType][userId].push({ prompt, response });
-  await saveConversationHistory(history);
+  const history = await loadConversationHistory(userId, aiType);
+  history.push({ prompt, response });
+  await saveConversationHistory(userId, aiType, history);
 }
 
 function catify(text) {
@@ -122,11 +137,10 @@ function catify(text) {
 }
 
 async function getGPTResponse(userId, prompt) {
-  const history = await loadConversationHistory();
-  const userHistory = history.gpt[userId] || [];
+  const history = await loadConversationHistory(userId, 'gpt');
   const messages = [
     { role: "system", content: "あなたは猫語で話す賢いアシスタントですにゃ。全ての応答の語尾に「にゃ」をつけてにゃ。" },
-    ...userHistory.flatMap(h => [
+    ...history.flatMap(h => [
       { role: "user", content: h.prompt },
       { role: "assistant", content: h.response }
     ]),
@@ -144,13 +158,12 @@ async function getGPTResponse(userId, prompt) {
 }
 
 async function getGeminiResponse(userId, prompt) {
-  const history = await loadConversationHistory();
-  const userHistory = history.gemini[userId] || [];
+  const history = await loadConversationHistory(userId, 'gemini');
   const model = genAI.getGenerativeModel({ model: "gemini-pro"});
   const result = await model.generateContent({
     contents: [
       { parts: [{ text: "あなたは猫語で話す賢いアシスタントですにゃ。全ての応答の語尾に「にゃ」をつけてにゃ。" }] },
-      ...userHistory.flatMap(h => [
+      ...history.flatMap(h => [
         { parts: [{ text: h.prompt }] },
         { parts: [{ text: h.response }] }
       ]),
@@ -163,11 +176,10 @@ async function getGeminiResponse(userId, prompt) {
 }
 
 async function getPerplexityResponse(userId, prompt) {
-  const history = await loadConversationHistory();
-  const userHistory = history.perplexity[userId] || [];
+  const history = await loadConversationHistory(userId, 'perplexity');
   const messages = [
     { role: 'system', content: 'あなたは猫語で話す賢いアシスタントですにゃ。全ての応答の語尾に「にゃ」をつけてにゃ。' },
-    ...userHistory.flatMap(h => [
+    ...history.flatMap(h => [
       { role: 'user', content: h.prompt },
       { role: 'assistant', content: h.response }
     ]),
@@ -187,6 +199,30 @@ async function getPerplexityResponse(userId, prompt) {
   const aiResponse = response.data.choices[0].message.content;
   await updateConversationHistory(userId, 'perplexity', prompt, aiResponse);
   return aiResponse;
+}
+
+async function clearHistory(userId, aiType) {
+  const userFolder = await ensureUserFolder(userId);
+  const filePath = path.join(userFolder, `${aiType}.json`);
+  try {
+    await fs.unlink(filePath);
+  } catch (error) {
+    if (error.code !== 'ENOENT') {
+      console.error('Error deleting history:', error);
+    }
+  }
+}
+
+async function clearAllHistory(userId) {
+  const userFolder = await ensureUserFolder(userId);
+  try {
+    const files = await fs.readdir(userFolder);
+    for (const file of files) {
+      await fs.unlink(path.join(userFolder, file));
+    }
+  } catch (error) {
+    console.error('Error deleting all history:', error);
+  }
 }
 
 client.once('ready', async () => {
@@ -273,6 +309,16 @@ client.on('interactionCreate', async interaction => {
     autoRespondSettings[channel.id] = ai;
     
     await interaction.reply(catify(`${channel.name}チャンネルで${ai}を使用した自動応答を設定したにゃ！`));
+  } else if (commandName === 'clear_history') {
+    const ai = interaction.options.getString('ai');
+    
+    if (ai === 'all') {
+      await clearAllHistory(userId);
+      await interaction.reply(catify('全てのAIの会話履歴を削除したにゃ！'));
+    } else {
+      await clearHistory(userId, ai);
+      await interaction.reply(catify(`${ai}の会話履歴を削除したにゃ！`));
+    }
   }
 });
 
