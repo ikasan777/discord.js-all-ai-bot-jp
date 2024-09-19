@@ -34,31 +34,31 @@ const userDataFolder = path.join(__dirname, 'userData');
 const commands = [
   new SlashCommandBuilder()
     .setName('gpt')
-    .setDescription('GPT-3.5に質問するにゃ')
+    .setDescription('GPT-3.5に質問する')
     .addStringOption(option => 
       option.setName('prompt')
-        .setDescription('GPTへの質問内容にゃ')
+        .setDescription('GPTへの質問内容')
         .setRequired(true)),
   new SlashCommandBuilder()
     .setName('gemini')
-    .setDescription('Geminiに質問するにゃ')
+    .setDescription('Geminiに質問する')
     .addStringOption(option => 
       option.setName('prompt')
-        .setDescription('Geminiへの質問内容にゃ')
+        .setDescription('Geminiへの質問内容')
         .setRequired(true)),
   new SlashCommandBuilder()
     .setName('perplexity')
-    .setDescription('Perplexityに質問するにゃ')
+    .setDescription('Perplexityに質問する')
     .addStringOption(option => 
       option.setName('prompt')
-        .setDescription('Perplexityへの質問内容にゃ')
+        .setDescription('Perplexityへの質問内容')
         .setRequired(true)),
   new SlashCommandBuilder()
     .setName('toggle')
-    .setDescription('機能のオン/オフを切り替えるにゃ')
+    .setDescription('機能のオン/オフを切り替える')
     .addStringOption(option =>
       option.setName('feature')
-        .setDescription('切り替える機能にゃ')
+        .setDescription('切り替える機能')
         .setRequired(true)
         .addChoices(
           { name: 'GPT', value: 'gpt' },
@@ -67,14 +67,14 @@ const commands = [
         )),
   new SlashCommandBuilder()
     .setName('set_auto_respond')
-    .setDescription('自動応答の設定を行うにゃ')
+    .setDescription('自動応答の設定を行う')
     .addChannelOption(option => 
       option.setName('channel')
-        .setDescription('自動応答を行うチャンネルを選択するにゃ')
+        .setDescription('自動応答を行うチャンネルを選択する')
         .setRequired(true))
     .addStringOption(option =>
       option.setName('ai')
-        .setDescription('使用するAIを選択するにゃ')
+        .setDescription('使用するAIを選択する')
         .setRequired(true)
         .addChoices(
           { name: 'GPT', value: 'gpt' },
@@ -84,10 +84,10 @@ const commands = [
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
   new SlashCommandBuilder()
     .setName('clear_history')
-    .setDescription('会話履歴を削除するにゃ')
+    .setDescription('会話履歴を削除する')
     .addStringOption(option =>
       option.setName('ai')
-        .setDescription('削除するAIの履歴を選択するにゃ')
+        .setDescription('削除するAIの履歴を選択する')
         .setRequired(true)
         .addChoices(
           { name: 'GPT', value: 'gpt' },
@@ -139,7 +139,7 @@ function catify(text) {
 async function getGPTResponse(userId, prompt) {
   const history = await loadConversationHistory(userId, 'gpt');
   const messages = [
-    { role: "system", content: "あなたは猫語で話す賢いアシスタントですにゃ。全ての応答の語尾に「にゃ」をつけてにゃ。" },
+    { role: "system", content: "あなたは猫語で話す賢いアシスタントです。" },
     ...history.flatMap(h => [
       { role: "user", content: h.prompt },
       { role: "assistant", content: h.response }
@@ -158,16 +158,10 @@ async function getGPTResponse(userId, prompt) {
 }
 
 async function getGeminiResponse(userId, prompt) {
-  const history = await loadConversationHistory(userId, 'gemini');
-  const model = genAI.getGenerativeModel({ model: "gemini-pro"});
+  const model = genAI.getGenerativeModel({ model: "gemini-pro" });
   const result = await model.generateContent({
     contents: [
-      { parts: [{ text: "あなたは猫語で話す賢いアシスタントですにゃ。全ての応答の語尾に「にゃ」をつけてにゃ。" }] },
-      ...history.flatMap(h => [
-        { parts: [{ text: h.prompt }] },
-        { parts: [{ text: h.response }] }
-      ]),
-      { parts: [{ text: prompt }] }
+      { role: "user", parts: [{ text: "あなたは猫語で話す賢いアシスタントです。以下の質問に答えてください：" + prompt }] }
     ]
   });
   const aiResponse = result.response.text();
@@ -178,7 +172,7 @@ async function getGeminiResponse(userId, prompt) {
 async function getPerplexityResponse(userId, prompt) {
   const history = await loadConversationHistory(userId, 'perplexity');
   const messages = [
-    { role: 'system', content: 'あなたは猫語で話す賢いアシスタントですにゃ。全ての応答の語尾に「にゃ」をつけてにゃ。' },
+    { role: 'system', content: 'あなたは猫語で話す賢いアシスタントです。' },
     ...history.flatMap(h => [
       { role: 'user', content: h.prompt },
       { role: 'assistant', content: h.response }
@@ -226,17 +220,17 @@ async function clearAllHistory(userId) {
 }
 
 client.once('ready', async () => {
-  console.log('ボットが起動したにゃ');
+  console.log('ボットが起動しました');
 
   try {
-    console.log('スラッシュコマンドを登録中にゃ...');
+    console.log('スラッシュコマンドを登録中...');
     await rest.put(
       Routes.applicationCommands(client.user.id),
       { body: commands },
     );
-    console.log('スラッシュコマンドの登録が完了したにゃ');
+    console.log('スラッシュコマンドの登録が完了しました');
   } catch (error) {
-    console.error('スラッシュコマンドの処理中にエラーが発生したにゃ:', error);
+    console.error('スラッシュコマンドの処理中にエラーが発生しました:', error);
   }
 });
 
@@ -274,7 +268,7 @@ client.on('interactionCreate', async interaction => {
 
       collector.on('collect', async (reaction, user) => {
         if (reaction.emoji.name === '🔄') {
-          await interaction.editReply('再生成中にゃ...');
+          await interaction.editReply('再生成中...');
           let newResponse;
           if (commandName === 'gpt') {
             newResponse = await getGPTResponse(userId, prompt);
@@ -299,7 +293,7 @@ client.on('interactionCreate', async interaction => {
     await interaction.reply(catify(`${feature}機能が${featureStatus[feature] ? '有効' : '無効'}になりました。`));
   } else if (commandName === 'set_auto_respond') {
     if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
-      await interaction.reply({ content: '管理者権限が必要にゃ！', ephemeral: true });
+      await interaction.reply({ content: '管理者権限が必要です！', ephemeral: true });
       return;
     }
     
@@ -308,16 +302,16 @@ client.on('interactionCreate', async interaction => {
     
     autoRespondSettings[channel.id] = ai;
     
-    await interaction.reply(catify(`${channel.name}チャンネルで${ai}を使用した自動応答を設定したにゃ！`));
+    await interaction.reply(catify(`${channel.name}チャンネルで${ai}を使用した自動応答を設定しました！`));
   } else if (commandName === 'clear_history') {
     const ai = interaction.options.getString('ai');
     
     if (ai === 'all') {
       await clearAllHistory(userId);
-      await interaction.reply(catify('全てのAIの会話履歴を削除したにゃ！'));
+      await interaction.reply(catify('全てのAIの会話履歴を削除しました！'));
     } else {
       await clearHistory(userId, ai);
-      await interaction.reply(catify(`${ai}の会話履歴を削除したにゃ！`));
+      await interaction.reply(catify(`${ai}の会話履歴を削除しました！`));
     }
   }
 });
